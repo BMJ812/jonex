@@ -1,0 +1,148 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+>
+  <defs>
+    <linearGradient
+      id="background"
+      x1="0"
+      y1="0"
+      x2="1"
+      y2="1"
+    >
+      <stop
+        offset="0"
+        stop-color="#111820"
+      />
+      <stop
+        offset="1"
+        stop-color="#080B0E"
+      />
+    </linearGradient>
+
+    <linearGradient
+      id="cyan"
+      x1="0"
+      y1="0"
+      x2="1"
+      y2="1"
+    >
+      <stop
+        offset="0"
+        stop-color="#78E8F2"
+      />
+      <stop
+        offset="1"
+        stop-color="#3B94A0"
+      />
+    </linearGradient>
+
+    <filter
+      id="softGlow"
+      x="-40%"
+      y="-40%"
+      width="180%"
+      height="180%"
+    >
+      <feGaussianBlur
+        stdDeviation="12"
+        result="blur"
+      />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect
+    x="24"
+    y="24"
+    width="976"
+    height="976"
+    rx="190"
+    fill="url(#background)"
+  />
+
+  <path
+    d="
+      M220 96
+      H804
+      L928 220
+      V804
+      L804 928
+      H220
+      L96 804
+      V220
+      Z
+    "
+    fill="none"
+    stroke="#26333D"
+    stroke-width="28"
+  />
+
+  <path
+    d="
+      M218 150
+      H770
+      L874 254
+    "
+    fill="none"
+    stroke="#63D7E5"
+    stroke-width="18"
+    stroke-linecap="square"
+    opacity="0.82"
+  />
+
+  <path
+    d="
+      M392 300
+      H514
+      V640
+      C514 746 451 806 346 806
+      C272 806 220 771 194 704
+      L300 660
+      C310 688 328 702 354 702
+      C382 702 396 684 396 648
+      Z
+    "
+    fill="url(#cyan)"
+    filter="url(#softGlow)"
+  />
+
+  <circle
+    cx="680"
+    cy="526"
+    r="190"
+    fill="none"
+    stroke="url(#cyan)"
+    stroke-width="76"
+    filter="url(#softGlow)"
+  />
+
+  <path
+    d="M548 700 L812 352"
+    fill="none"
+    stroke="#E5A94F"
+    stroke-width="38"
+    stroke-linecap="square"
+  />
+
+  <path
+    d="M154 824 H430"
+    fill="none"
+    stroke="#B46B9E"
+    stroke-width="18"
+    opacity="0.8"
+  />
+
+  <rect
+    x="836"
+    y="754"
+    width="38"
+    height="118"
+    fill="#E5A94F"
+  />
+</svg>

@@ -1,0 +1,25 @@
+[package]
+name = "jonex-shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Native JØNEX desktop shell"
+
+[lib]
+name = "jonex_shell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "jonex-shell"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+jonex-core = { path = "../../../crates/jonex-core" }
+jonex-plugin-host = { path = "../../../crates/jonex-plugin-host" }
+jonex-telemetry = { path = "../../../crates/jonex-telemetry" }
+tauri.workspace = true

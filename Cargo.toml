@@ -1,0 +1,25 @@
+[workspace]
+members = [
+    "apps/shell/src-tauri",
+    "crates/jonex-core",
+    "crates/jonex-plugin-api",
+    "crates/jonex-plugin-host",
+    "crates/jonex-telemetry",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/jonex-platform/jonex"
+rust-version = "1.95"
+
+[workspace.dependencies]
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = "0.39.6"
+tauri = "2"
+tauri-build = "2"
+tempfile = "3"

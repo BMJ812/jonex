@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "jonex.system-overview",
+  "name": "System Overview",
+  "version": "0.1.0",
+  "description": "Displays native CPU, memory, storage, host, and uptime telemetry.",
+  "publisher": "JØNEX Project",
+  "entry": {
+    "kind": "widget",
+    "component": "system.telemetry"
+  },
+  "permissions": [
+    "telemetry:read"
+  ],
+  "capabilities": [
+    "dashboard.widget"
+  ],
+  "defaultEnabled": true
+}

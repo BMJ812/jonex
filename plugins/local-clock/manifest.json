@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "jonex.local-clock",
+  "name": "Local Chronometer",
+  "version": "0.1.0",
+  "description": "Displays local date, time, and session state.",
+  "publisher": "JØNEX Project",
+  "entry": {
+    "kind": "widget",
+    "component": "system.clock"
+  },
+  "permissions": [],
+  "capabilities": [
+    "dashboard.widget"
+  ],
+  "defaultEnabled": true
+}

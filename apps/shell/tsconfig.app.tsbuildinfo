@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/app/catalog.test.ts","./src/app/catalog.ts","./src/app/jonexapi.ts","./src/app/models.ts","./src/app/widgetregistry.ts","./src/components/metriccard.tsx","./src/components/panel.tsx","./src/components/widgets/clockwidget.tsx","./src/components/widgets/systemtelemetrywidget.tsx","./src/hooks/usetelemetry.ts"],"version":"5.9.3"}
