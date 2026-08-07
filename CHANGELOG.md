@@ -16,8 +16,21 @@
 - GitHub Actions validation.
 - Geometric JØNEX application icon source.
 - Automated Tauri platform-icon generation during bootstrap.
+- Persistent native and frontend runtime logging.
+- React render-error containment with incident identifiers.
+- Global browser error and unhandled rejection logging.
+- Runtime observability documentation and architecture decision record.
+
+### Changed
+
+- CI now installs dependencies from the npm lockfile with `npm ci`.
+- Cargo build, test, and Clippy commands now enforce `Cargo.lock`.
+- CI uses the current Tauri Linux dependency set.
+- Runtime logs use bounded five-file rotation.
 
 ### Fixed
 
 - Added the Windows `icon.ico` resource required by the Tauri build process.
 - Updated bootstrap commands to use `npm.cmd`, avoiding PowerShell script-policy conflicts.
+- Removed generated TypeScript build-information files from source control.
+- Corrected Cargo workspace repository metadata.

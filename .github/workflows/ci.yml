@@ -6,14 +6,20 @@ on:
       - main
       - develop
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: jonex-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     name: Validate workspace
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -23,10 +29,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            wget
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -34,17 +46,21 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install Rust components
+      - name: Verify Rust toolchain
         run: |
-          rustup component add clippy rustfmt
           rustc --version
           cargo --version
+          cargo clippy --version
+          cargo fmt --version
 
-      - name: Install npm dependencies
-        run: npm install
+      - name: Install locked npm dependencies
+        run: npm ci
 
       - name: Validate frontend and Rust workspace
         run: npm run check
 
-      - name: Build workspace
+      - name: Build locked workspace
         run: npm run build
+
+      - name: Confirm lockfiles are unchanged
+        run: git diff --exit-code -- Cargo.lock package-lock.json

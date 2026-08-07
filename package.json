@@ -12,14 +12,14 @@
     "tauri:dev": "npm --workspace @jonex/shell run tauri:dev",
     "build": "npm run build:frontend && npm run build:rust",
     "build:frontend": "npm --workspace @jonex/shell run build",
-    "build:rust": "cargo build --workspace",
+    "build:rust": "cargo build --workspace --locked",
     "build:desktop": "npm --workspace @jonex/shell run tauri:build",
     "lint": "npm --workspace @jonex/shell run lint",
     "test": "npm --workspace @jonex/shell run test",
-    "test:rust": "cargo test --workspace",
+    "test:rust": "cargo test --workspace --locked",
     "format": "cargo fmt --all",
     "format:check": "cargo fmt --all -- --check",
-    "clippy": "cargo clippy --workspace --all-targets -- -D warnings",
+    "clippy": "cargo clippy --workspace --all-targets --locked -- -D warnings",
     "check": "npm run lint && npm run test && npm run format:check && npm run clippy && npm run test:rust"
   },
   "engines": {
