@@ -20,6 +20,12 @@
 - React render-error containment with incident identifiers.
 - Global browser error and unhandled rejection logging.
 - Runtime observability documentation and architecture decision record.
+- Versioned native settings storage with atomic replacement.
+- Settings schema migration and malformed-file recovery.
+- Persistent last-module navigation.
+- Persistent plugin enable/disable overrides.
+- Persistent dashboard widget ordering.
+- Functional Settings subsystem with local-state status and recovery controls.
 
 ### Changed
 
@@ -27,6 +33,7 @@
 - Cargo build, test, and Clippy commands now enforce `Cargo.lock`.
 - CI uses the current Tauri Linux dependency set.
 - Runtime logs use bounded five-file rotation.
+- Dashboard plugin selection now honors persisted local state.
 
 ### Fixed
 

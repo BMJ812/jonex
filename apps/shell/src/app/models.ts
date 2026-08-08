@@ -82,3 +82,34 @@ export interface WidgetContext {
   telemetryError: string | null;
   isNative: boolean;
 }
+
+export type ModuleId =
+  | "dashboard"
+  | "systems"
+  | "containers"
+  | "automation"
+  | "media"
+  | "development"
+  | "plugins"
+  | "settings";
+
+export interface JonexSettings {
+  schemaVersion: number;
+  lastModule: ModuleId;
+  pluginStates: Record<string, boolean>;
+  dashboardWidgetOrder: string[];
+  updatedAtUnixMs: number;
+}
+
+export type SettingsLoadSource =
+  | "default"
+  | "stored"
+  | "migrated"
+  | "recovered";
+
+export interface SettingsLoadResult {
+  settings: JonexSettings;
+  source: SettingsLoadSource;
+  storagePath: string;
+  backupPath: string | null;
+}

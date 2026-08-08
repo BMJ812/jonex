@@ -21,6 +21,7 @@ tauri-build.workspace = true
 [dependencies]
 jonex-core = { path = "../../../crates/jonex-core" }
 jonex-plugin-host = { path = "../../../crates/jonex-plugin-host" }
+jonex-settings = { path = "../../../crates/jonex-settings" }
 jonex-telemetry = { path = "../../../crates/jonex-telemetry" }
 log.workspace = true
 tauri.workspace = true

@@ -1,10 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type {
+  JonexSettings,
   PlatformInfo,
   PluginCatalog,
+  SettingsLoadResult,
   TelemetrySnapshot,
 } from "./models";
+import {
+  createDefaultSettings,
+  normalizeSettings,
+} from "./settings";
+
+const browserSettingsKey = "jonex.settings.v1";
 
 export function isNativeRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -36,6 +44,87 @@ export async function getPlatformInfo(): Promise<PlatformInfo> {
     targetOs: "browser",
     targetArch: "development",
     debugBuild: true,
+  };
+}
+
+export async function getSettings(): Promise<SettingsLoadResult> {
+  if (isNativeRuntime()) {
+    return invoke<SettingsLoadResult>("get_settings");
+  }
+
+  const stored = window.localStorage.getItem(browserSettingsKey);
+
+  if (!stored) {
+    return {
+      settings: createDefaultSettings(),
+      source: "default",
+      storagePath: `localStorage:${browserSettingsKey}`,
+      backupPath: null,
+    };
+  }
+
+  try {
+    return {
+      settings: normalizeSettings(
+        JSON.parse(stored) as Partial<JonexSettings>,
+      ),
+      source: "stored",
+      storagePath: `localStorage:${browserSettingsKey}`,
+      backupPath: null,
+    };
+  } catch {
+    window.localStorage.removeItem(browserSettingsKey);
+
+    return {
+      settings: createDefaultSettings(),
+      source: "recovered",
+      storagePath: `localStorage:${browserSettingsKey}`,
+      backupPath: null,
+    };
+  }
+}
+
+export async function saveSettings(
+  settings: JonexSettings,
+): Promise<JonexSettings> {
+  if (isNativeRuntime()) {
+    return invoke<JonexSettings>("save_settings", { settings });
+  }
+
+  const normalized = normalizeSettings(settings);
+  const saved = {
+    ...normalized,
+    updatedAtUnixMs: Date.now(),
+  };
+
+  window.localStorage.setItem(
+    browserSettingsKey,
+    JSON.stringify(saved),
+  );
+
+  return saved;
+}
+
+export async function resetSettings(): Promise<SettingsLoadResult> {
+  if (isNativeRuntime()) {
+    return invoke<SettingsLoadResult>("reset_settings");
+  }
+
+  const settings = {
+    ...createDefaultSettings(),
+    updatedAtUnixMs: Date.now(),
+  };
+
+  window.localStorage.setItem(
+    browserSettingsKey,
+    JSON.stringify(settings),
+  );
+
+  return {
+    settings,
+    source: "default",
+    storagePath: `localStorage:${browserSettingsKey}`,
+    backupPath: null,
   };
 }
 

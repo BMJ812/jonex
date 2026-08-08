@@ -1,29 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { selectEnabledWidgetPlugins } from "./app/catalog";
 import {
   getPlatformInfo,
   getPluginCatalog,
+  getSettings,
   isNativeRuntime,
+  resetSettings,
+  saveSettings,
 } from "./app/jonexApi";
 import type {
+  JonexSettings,
+  ModuleId,
   PlatformInfo,
   PluginCatalog,
+  SettingsLoadSource,
   WidgetContext,
 } from "./app/models";
+import {
+  createDefaultSettings,
+  isPluginEnabled,
+  normalizeSettings,
+  orderDashboardPlugins,
+} from "./app/settings";
 import { resolveWidget } from "./app/widgetRegistry";
 import { Panel } from "./components/Panel";
+import { SettingsModule } from "./components/SettingsModule";
 import { useTelemetry } from "./hooks/useTelemetry";
-
-type ModuleId =
-  | "dashboard"
-  | "systems"
-  | "containers"
-  | "automation"
-  | "media"
-  | "development"
-  | "plugins"
-  | "settings";
 
 interface NavigationItem {
   id: ModuleId;
@@ -56,24 +65,59 @@ export function App() {
   const [platform, setPlatform] = useState<PlatformInfo | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
+  const [settings, setSettingsState] = useState<JonexSettings>(
+    createDefaultSettings(),
+  );
+  const [settingsSource, setSettingsSource] =
+    useState<SettingsLoadSource>("default");
+  const [settingsStoragePath, setSettingsStoragePath] = useState("");
+  const [settingsBackupPath, setSettingsBackupPath] =
+    useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [pendingSettingsWrites, setPendingSettingsWrites] = useState(0);
+
+  const settingsRef = useRef(settings);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const replaceSettings = useCallback((nextSettings: JonexSettings) => {
+    const normalized = normalizeSettings(nextSettings);
+    settingsRef.current = normalized;
+    setSettingsState(normalized);
+    return normalized;
+  }, []);
+
   useEffect(() => {
     let active = true;
 
     const loadPlatform = async (): Promise<void> => {
       try {
-        const [nextCatalog, nextPlatform] = await Promise.all([
+        const [nextCatalog, nextPlatform, loadedSettings] = await Promise.all([
           getPluginCatalog(),
           getPlatformInfo(),
+          getSettings(),
         ]);
 
         if (active) {
           setCatalog(nextCatalog);
           setPlatform(nextPlatform);
           setCatalogError(null);
+
+          const nextSettings = replaceSettings(loadedSettings.settings);
+          setSettingsSource(loadedSettings.source);
+          setSettingsStoragePath(loadedSettings.storagePath);
+          setSettingsBackupPath(loadedSettings.backupPath);
+          setSettingsError(null);
+          setSettingsLoaded(true);
+          setActiveModule(nextSettings.lastModule);
         }
       } catch (error) {
         if (active) {
-          setCatalogError(error instanceof Error ? error.message : String(error));
+          const message =
+            error instanceof Error ? error.message : String(error);
+          setCatalogError(message);
+          setSettingsError(message);
+          setSettingsLoaded(true);
         }
       }
     };
@@ -83,11 +127,147 @@ export function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [replaceSettings]);
+
+  const queueSettingsSave = useCallback(
+    (nextSettings: JonexSettings): void => {
+      const normalized = replaceSettings(nextSettings);
+
+      setPendingSettingsWrites((count) => count + 1);
+      setSettingsError(null);
+
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const saved = await saveSettings(normalized);
+
+          if (settingsRef.current === normalized) {
+            replaceSettings(saved);
+          }
+
+          setSettingsSource("stored");
+        })
+        .catch((error) => {
+          setSettingsError(
+            error instanceof Error ? error.message : String(error),
+          );
+        })
+        .finally(() => {
+          setPendingSettingsWrites((count) => Math.max(0, count - 1));
+        });
+    },
+    [replaceSettings],
+  );
+
+  const updateSettings = useCallback(
+    (transform: (current: JonexSettings) => JonexSettings): void => {
+      const next = transform(settingsRef.current);
+      queueSettingsSave(next);
+    },
+    [queueSettingsSave],
+  );
+
+  const handleModuleChange = useCallback(
+    (moduleId: ModuleId): void => {
+      setActiveModule(moduleId);
+
+      if (settingsLoaded) {
+        updateSettings((current) => ({
+          ...current,
+          lastModule: moduleId,
+        }));
+      }
+    },
+    [settingsLoaded, updateSettings],
+  );
+
+  const handlePluginToggle = useCallback(
+    (pluginId: string): void => {
+      const plugin = catalog.plugins.find(
+        ({ manifest }) => manifest.id === pluginId,
+      );
+
+      if (!plugin) {
+        return;
+      }
+
+      updateSettings((current) => ({
+        ...current,
+        pluginStates: {
+          ...current.pluginStates,
+          [pluginId]: !isPluginEnabled(plugin, current),
+        },
+      }));
+    },
+    [catalog.plugins, updateSettings],
+  );
+
+  const handleMoveWidget = useCallback(
+    (pluginId: string, direction: -1 | 1): void => {
+      updateSettings((current) => {
+        const widgetPlugins = orderDashboardPlugins(
+          catalog.plugins.filter(
+            ({ manifest }) =>
+              manifest.entry.kind === "widget" &&
+              manifest.capabilities.includes("dashboard.widget"),
+          ),
+          current,
+        );
+
+        const order = widgetPlugins.map(({ manifest }) => manifest.id);
+        const currentIndex = order.indexOf(pluginId);
+        const destinationIndex = currentIndex + direction;
+
+        if (
+          currentIndex < 0 ||
+          destinationIndex < 0 ||
+          destinationIndex >= order.length
+        ) {
+          return current;
+        }
+
+        [order[currentIndex], order[destinationIndex]] = [
+          order[destinationIndex],
+          order[currentIndex],
+        ];
+
+        return {
+          ...current,
+          dashboardWidgetOrder: order,
+        };
+      });
+    },
+    [catalog.plugins, updateSettings],
+  );
+
+  const handleResetSettings = useCallback((): void => {
+    setPendingSettingsWrites((count) => count + 1);
+    setSettingsError(null);
+
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const loaded = await resetSettings();
+        const nextSettings = replaceSettings(loaded.settings);
+
+        setSettingsSource(loaded.source);
+        setSettingsStoragePath(loaded.storagePath);
+        setSettingsBackupPath(loaded.backupPath);
+        setActiveModule(nextSettings.lastModule);
+      })
+      .catch((error) => {
+        setSettingsError(
+          error instanceof Error ? error.message : String(error),
+        );
+      })
+      .finally(() => {
+        setPendingSettingsWrites((count) => Math.max(0, count - 1));
+      });
+  }, [replaceSettings]);
 
   const enabledWidgets = useMemo(
-    () => selectEnabledWidgetPlugins(catalog),
-    [catalog],
+    () => selectEnabledWidgetPlugins(catalog, settings),
+    [catalog, settings],
   );
 
   const connectionState = telemetry.error
@@ -149,7 +329,7 @@ export function App() {
                   activeModule === item.id ? "navigation-item--active" : ""
                 }`}
                 key={item.id}
-                onClick={() => setActiveModule(item.id)}
+                onClick={() => handleModuleChange(item.id)}
               >
                 <span className="navigation-item__code">{item.code}</span>
                 <span>{item.label}</span>
@@ -189,6 +369,13 @@ export function App() {
             <div className="workspace-heading__status">
               <span>{enabledWidgets.length} active widgets</span>
               <span>{catalog.plugins.length} plugins found</span>
+              <span>
+                {pendingSettingsWrites > 0
+                  ? "state syncing"
+                  : settingsLoaded
+                    ? "state persistent"
+                    : "state loading"}
+              </span>
             </div>
           </div>
 
@@ -218,11 +405,25 @@ export function App() {
               {enabledWidgets.length === 0 ? (
                 <Panel title="No active widgets" eyebrow="PLUGIN HOST">
                   <div className="empty-state">
-                    The plugin host did not return any enabled dashboard widgets.
+                    Dashboard widgets are disabled. Enable at least one widget
+                    in Settings.
                   </div>
                 </Panel>
               ) : null}
             </div>
+          ) : activeModule === "settings" ? (
+            <SettingsModule
+              settings={settings}
+              source={settingsSource}
+              storagePath={settingsStoragePath}
+              backupPath={settingsBackupPath}
+              plugins={catalog.plugins}
+              pendingWrites={pendingSettingsWrites}
+              error={settingsError}
+              onTogglePlugin={handlePluginToggle}
+              onMoveWidget={handleMoveWidget}
+              onReset={handleResetSettings}
+            />
           ) : (
             <ModulePlaceholder
               moduleId={activeModule}
@@ -261,15 +462,22 @@ export function App() {
             </div>
 
             <div className="plugin-list">
-              {catalog.plugins.map(({ manifest }) => (
-                <div className="plugin-list__item" key={manifest.id}>
-                  <div>
-                    <strong>{manifest.name}</strong>
-                    <span>{manifest.id}</span>
+              {catalog.plugins.map((plugin) => {
+                const { manifest } = plugin;
+                const enabled = isPluginEnabled(plugin, settings);
+
+                return (
+                  <div className="plugin-list__item" key={manifest.id}>
+                    <div>
+                      <strong>{manifest.name}</strong>
+                      <span>{manifest.id}</span>
+                    </div>
+                    <span className="plugin-version">
+                      {enabled ? `v${manifest.version}` : "OFF"}
+                    </span>
                   </div>
-                  <span className="plugin-version">v{manifest.version}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {catalogError ? (
@@ -325,8 +533,12 @@ export function App() {
           LOCAL-FIRST CHANNEL ACTIVE
         </div>
         <div>
-          SAMPLE{" "}
-          {telemetry.snapshot?.sequence.toString().padStart(6, "0") ?? "------"}
+          STATE{" "}
+          {pendingSettingsWrites > 0
+            ? "SYNCING"
+            : settingsError
+              ? "FAULT"
+              : "STABLE"}
         </div>
         <div>
           {platform ? `CORE ${platform.appVersion}` : "CORE INITIALIZING"}
@@ -337,7 +549,7 @@ export function App() {
 }
 
 interface ModulePlaceholderProps {
-  moduleId: Exclude<ModuleId, "dashboard">;
+  moduleId: Exclude<ModuleId, "dashboard" | "settings">;
   pluginCount: number;
 }
 

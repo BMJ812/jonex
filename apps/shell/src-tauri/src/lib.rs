@@ -2,6 +2,7 @@ use std::{env, path::PathBuf, sync::Mutex};
 
 use jonex_core::{platform_info, PlatformInfo};
 use jonex_plugin_host::{PluginCatalog, PluginHost};
+use jonex_settings::{JonexSettings, SettingsLoadResult, SettingsLoadSource, SettingsStore};
 use jonex_telemetry::{TelemetryService, TelemetrySnapshot};
 use log::{debug, error, info, warn, LevelFilter};
 use tauri::Manager;
@@ -10,6 +11,7 @@ use tauri_plugin_log::{RotationStrategy, TimezoneStrategy};
 struct JonexState {
     telemetry: Mutex<TelemetryService>,
     plugin_host: PluginHost,
+    settings_store: Mutex<SettingsStore>,
 }
 
 #[tauri::command]
@@ -72,6 +74,74 @@ fn get_platform_info() -> PlatformInfo {
     info
 }
 
+#[tauri::command]
+fn get_settings(state: tauri::State<'_, JonexState>) -> Result<SettingsLoadResult, String> {
+    let store = state
+        .settings_store
+        .lock()
+        .map_err(|_| "settings store lock was poisoned".to_owned())?;
+
+    let loaded = store.load()?;
+
+    info!(
+        target: "jonex::settings",
+        "settings loaded source={:?} path={}",
+        loaded.source,
+        loaded.storage_path
+    );
+
+    if let Some(backup_path) = &loaded.backup_path {
+        warn!(
+            target: "jonex::settings",
+            "malformed settings were recovered backup={backup_path}"
+        );
+    }
+
+    Ok(loaded)
+}
+
+#[tauri::command]
+fn save_settings(
+    state: tauri::State<'_, JonexState>,
+    settings: JonexSettings,
+) -> Result<JonexSettings, String> {
+    let store = state
+        .settings_store
+        .lock()
+        .map_err(|_| "settings store lock was poisoned".to_owned())?;
+
+    let saved = store.save(settings)?;
+
+    debug!(
+        target: "jonex::settings",
+        "settings saved last_module={} plugin_overrides={} widget_order={}",
+        saved.last_module,
+        saved.plugin_states.len(),
+        saved.dashboard_widget_order.len()
+    );
+
+    Ok(saved)
+}
+
+#[tauri::command]
+fn reset_settings(state: tauri::State<'_, JonexState>) -> Result<SettingsLoadResult, String> {
+    let store = state
+        .settings_store
+        .lock()
+        .map_err(|_| "settings store lock was poisoned".to_owned())?;
+
+    let settings = store.reset()?;
+
+    info!(target: "jonex::settings", "settings reset to defaults");
+
+    Ok(SettingsLoadResult {
+        settings,
+        source: SettingsLoadSource::Default,
+        storage_path: store.path().display().to_string(),
+        backup_path: None,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let jonex_level = if cfg!(debug_assertions) {
@@ -83,6 +153,7 @@ pub fn run() {
     let log_plugin = tauri_plugin_log::Builder::new()
         .level(LevelFilter::Info)
         .level_for("jonex_shell_lib", jonex_level)
+        .level_for("jonex::settings", jonex_level)
         .max_file_size(5_000_000)
         .rotation_strategy(RotationStrategy::KeepSome(5))
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -92,6 +163,8 @@ pub fn run() {
         .plugin(log_plugin)
         .setup(|app| {
             let roots = plugin_roots(app);
+            let application_data = app.path().app_data_dir()?;
+            let settings_path = application_data.join("settings").join("settings.json");
 
             info!(
                 target: "jonex::runtime",
@@ -102,9 +175,16 @@ pub fn run() {
                 roots.len()
             );
 
+            info!(
+                target: "jonex::settings",
+                "settings store initialized path={}",
+                settings_path.display()
+            );
+
             app.manage(JonexState {
                 telemetry: Mutex::new(TelemetryService::new()),
                 plugin_host: PluginHost::new(roots),
+                settings_store: Mutex::new(SettingsStore::new(settings_path)),
             });
 
             info!(target: "jonex::runtime", "native services initialized");
@@ -115,6 +195,9 @@ pub fn run() {
             get_system_snapshot,
             list_plugins,
             get_platform_info,
+            get_settings,
+            save_settings,
+            reset_settings,
         ])
         .run(tauri::generate_context!());
 
