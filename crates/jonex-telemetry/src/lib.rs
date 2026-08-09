@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashSet,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use serde::Serialize;
 use sysinfo::{Disks, System};
@@ -90,6 +93,11 @@ impl TelemetryService {
             .disks
             .list()
             .iter()
+            .filter(|disk| {
+                let file_system = disk.file_system().to_string_lossy();
+
+                !is_virtual_file_system(&file_system)
+            })
             .map(|disk| {
                 let total = disk.total_space();
                 let available = disk.available_space();
@@ -107,7 +115,22 @@ impl TelemetryService {
             })
             .collect::<Vec<_>>();
 
-        disks.sort_by(|left, right| left.mount_point.cmp(&right.mount_point));
+        disks.sort_by(|left, right| {
+            disk_priority(&left.mount_point)
+                .cmp(&disk_priority(&right.mount_point))
+                .then_with(|| right.total_bytes.cmp(&left.total_bytes))
+                .then_with(|| left.mount_point.cmp(&right.mount_point))
+        });
+
+        /*
+         * Fedora Atomic exposes the same backing Btrfs filesystem through
+         * several persistent mount points such as /var, /var/home, /etc,
+         * and /sysroot. Keep the highest-priority representative instead
+         * of reporting the same physical storage repeatedly.
+         */
+        let mut seen_disks = HashSet::new();
+
+        disks.retain(|disk| seen_disks.insert((disk.name.clone(), disk.total_bytes)));
 
         TelemetrySnapshot {
             sequence: self.sequence,
@@ -136,6 +159,58 @@ impl TelemetryService {
     }
 }
 
+fn is_virtual_file_system(file_system: &str) -> bool {
+    matches!(
+        file_system.to_ascii_lowercase().as_str(),
+        "overlay"
+            | "composefs"
+            | "tmpfs"
+            | "devtmpfs"
+            | "proc"
+            | "sysfs"
+            | "cgroup"
+            | "cgroup2"
+            | "ramfs"
+            | "squashfs"
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn disk_priority(mount_point: &str) -> u8 {
+    let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_owned());
+
+    if mount_point
+        .to_ascii_lowercase()
+        .starts_with(&system_drive.to_ascii_lowercase())
+    {
+        0
+    } else {
+        10
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn disk_priority(mount_point: &str) -> u8 {
+    match mount_point {
+        "/" => 0,
+
+        /*
+         * Fedora Atomic's immutable root is normally filtered above.
+         * /var/home is then the preferred representation of the persistent
+         * host filesystem.
+         */
+        "/var/home" => 1,
+        "/home" => 2,
+        "/var" => 3,
+        "/sysroot" => 4,
+
+        "/boot" => 20,
+        "/boot/efi" => 21,
+
+        _ => 10,
+    }
+}
+
 fn current_unix_milliseconds() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -159,12 +234,30 @@ fn round_f32(value: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{percentage, TelemetryService};
+    use super::{disk_priority, is_virtual_file_system, percentage, TelemetryService};
 
     #[test]
     fn calculates_percentage() {
         assert_eq!(percentage(50, 100), 50.0);
         assert_eq!(percentage(1, 0), 0.0);
+    }
+
+    #[test]
+    fn rejects_virtual_linux_file_systems() {
+        assert!(is_virtual_file_system("overlay"));
+        assert!(is_virtual_file_system("composefs"));
+        assert!(is_virtual_file_system("tmpfs"));
+        assert!(!is_virtual_file_system("btrfs"));
+        assert!(!is_virtual_file_system("ext4"));
+        assert!(!is_virtual_file_system("ntfs"));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn prioritizes_persistent_linux_storage() {
+        assert!(disk_priority("/") < disk_priority("/var/home"));
+        assert!(disk_priority("/var/home") < disk_priority("/var"));
+        assert!(disk_priority("/var") < disk_priority("/boot"));
     }
 
     #[test]
