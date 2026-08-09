@@ -11,9 +11,29 @@ fi
 cd "$ROOT"
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
+OUTPUT_DIR="$ROOT/dist/fedora"
+OUTPUT="$OUTPUT_DIR/JONEX-${VERSION}-x86_64.AppImage"
 
 echo "Building JØNEX ${VERSION} AppImage..."
 echo
+
+# Fedora 44 libraries contain modern ELF RELR sections that the strip binary
+# embedded in linuxdeploy cannot process. Disabling linuxdeploy stripping
+# avoids corrupting or rejecting those libraries.
+export NO_STRIP=1
+
+# Toolbx does not provide the traditional FUSE execution path expected by
+# AppImage tooling. Extract-and-run mode allows Tauri's linuxdeploy AppImages
+# to execute correctly inside the build container.
+export APPIMAGE_EXTRACT_AND_RUN=1
+
+# Remove stale bundle output so artifact discovery cannot select an older file.
+rm -rf \
+  "$ROOT/target/release/bundle/appimage" \
+  "$ROOT/apps/shell/src-tauri/target/release/bundle/appimage"
+
+mkdir -p "$OUTPUT_DIR"
+rm -f "$OUTPUT"
 
 npm ci
 npm run version:check
@@ -40,10 +60,7 @@ if [[ "${#CANDIDATES[@]}" -eq 0 ]]; then
 fi
 
 ARTIFACT="${CANDIDATES[-1]}"
-OUTPUT_DIR="$ROOT/dist/fedora"
-OUTPUT="$OUTPUT_DIR/JONEX-${VERSION}-x86_64.AppImage"
 
-mkdir -p "$OUTPUT_DIR"
 cp -- "$ARTIFACT" "$OUTPUT"
 chmod +x "$OUTPUT"
 
