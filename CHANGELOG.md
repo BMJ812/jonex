@@ -26,14 +26,21 @@
 - Persistent plugin enable/disable overrides.
 - Persistent dashboard widget ordering.
 - Functional Settings subsystem with local-state status and recovery controls.
+- Canonical repository `VERSION` source and synchronization tool.
+- Fedora Kinoite 44 Atomic Desktop target.
+- Fedora Toolbx provisioning and AppImage build scripts.
+- Fedora AppImage installer with optional graphical-session autostart.
+- Hyper-V Fedora Atomic VM creation script.
 
 ### Changed
 
 - CI now installs dependencies from the npm lockfile with `npm ci`.
-- Cargo build, test, and Clippy commands now enforce `Cargo.lock`.
+- Cargo build, test, and Clippy commands enforce `Cargo.lock`.
 - CI uses the current Tauri Linux dependency set.
 - Runtime logs use bounded five-file rotation.
-- Dashboard plugin selection now honors persisted local state.
+- Dashboard plugin selection honors persisted local state.
+- JØNEX UI version is derived from synchronized build metadata instead of a hardcoded label.
+- CI rejects inconsistent JØNEX version metadata.
 
 ### Fixed
 

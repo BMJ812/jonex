@@ -46,6 +46,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Verify synchronized version metadata
+        run: npm run version:check
+
       - name: Verify Rust toolchain
         run: |
           rustc --version

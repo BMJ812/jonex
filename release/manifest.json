@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "product": "JØNEX",
+  "slug": "jonex",
+  "version": "0.1.3",
+  "channel": "development",
+  "repository": "https://github.com/BMJ812/jonex",
+  "fedoraTarget": "Fedora Kinoite 44"
+}

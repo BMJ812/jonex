@@ -11,6 +11,7 @@ import {
   createDefaultSettings,
   normalizeSettings,
 } from "./settings";
+import { JONEX_VERSION } from "./version";
 
 const browserSettingsKey = "jonex.settings.v1";
 
@@ -40,7 +41,7 @@ export async function getPlatformInfo(): Promise<PlatformInfo> {
   }
 
   return {
-    appVersion: "0.1.0",
+    appVersion: JONEX_VERSION,
     targetOs: "browser",
     targetArch: "development",
     debugBuild: true,
