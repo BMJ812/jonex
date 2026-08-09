@@ -30,6 +30,7 @@ import {
   orderDashboardPlugins,
 } from "./app/settings";
 import { resolveWidget } from "./app/widgetRegistry";
+import { JONEX_VERSION } from "./app/version";
 import { Panel } from "./components/Panel";
 import { SettingsModule } from "./components/SettingsModule";
 import { useTelemetry } from "./hooks/useTelemetry";
@@ -292,7 +293,7 @@ export function App() {
           <div>
             <div className="brand__name">JØNEX</div>
             <div className="brand__subtitle">
-              OPERATIONS PLATFORM // 0.1.0
+              OPERATIONS PLATFORM // {platform?.appVersion ?? JONEX_VERSION}
             </div>
           </div>
         </div>
