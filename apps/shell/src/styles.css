@@ -1087,3 +1087,50 @@ button:focus-visible {
     grid-column: auto;
   }
 }
+
+
+/* JØNEX 0.1.4 native service health */
+.service-health--fault {
+  border-color: rgba(223, 102, 114, 0.34);
+  color: var(--danger);
+}
+
+.service-registry__actions .status-chip {
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+
+@media (max-width: 1100px) {
+  .service-registry__item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .service-registry__actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    grid-auto-flow: initial;
+  }
+}
+
+/* JØNEX 0.1.4 service health responsive controls */
+.service-registry__item {
+  flex-wrap: wrap;
+}
+
+.service-registry__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1400px) {
+  .service-registry__item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .service-registry__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

@@ -146,3 +146,20 @@ export interface ServiceRegistryLoadResult {
   storagePath: string;
   backupPath: string | null;
 }
+
+export type ServiceHealthStatus =
+  | "online"
+  | "auth_required"
+  | "offline"
+  | "fault"
+  | "unsupported";
+
+export interface ServiceProbeResult {
+  serviceId: string;
+  status: ServiceHealthStatus;
+  probeUrl: string;
+  httpStatus: number | null;
+  latencyMs: number;
+  checkedAtUnixMs: number;
+  detail: string;
+}

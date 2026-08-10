@@ -2,7 +2,10 @@ use std::{env, path::PathBuf, sync::Mutex};
 
 use jonex_core::{platform_info, PlatformInfo};
 use jonex_plugin_host::{PluginCatalog, PluginHost};
-use jonex_service_registry::{ServiceRegistry, ServiceRegistryLoadResult, ServiceRegistryStore};
+use jonex_service_health::{probe_service, ServiceHealthStatus, ServiceProbeResult};
+use jonex_service_registry::{
+    ServiceRecord, ServiceRegistry, ServiceRegistryLoadResult, ServiceRegistryStore,
+};
 use jonex_settings::{JonexSettings, SettingsLoadResult, SettingsLoadSource, SettingsStore};
 use jonex_telemetry::{TelemetryService, TelemetrySnapshot};
 use log::{debug, error, info, warn, LevelFilter};
@@ -195,6 +198,49 @@ fn save_service_registry(
     Ok(saved)
 }
 
+#[tauri::command]
+async fn probe_remote_service(service: ServiceRecord) -> ServiceProbeResult {
+    let service_name = service.name.clone();
+    let service_id = service.id.clone();
+    let result = probe_service(&service).await;
+
+    match result.status {
+        ServiceHealthStatus::Online => {
+            info!(
+                target: "jonex::services",
+                "service probe online id={} name={} status={:?} latency_ms={}",
+                service_id,
+                service_name,
+                result.http_status,
+                result.latency_ms
+            );
+        }
+        ServiceHealthStatus::AuthRequired => {
+            info!(
+                target: "jonex::services",
+                "service probe requires authentication id={} name={} status={:?} latency_ms={}",
+                service_id,
+                service_name,
+                result.http_status,
+                result.latency_ms
+            );
+        }
+        ServiceHealthStatus::Offline | ServiceHealthStatus::Fault => {
+            warn!(
+                target: "jonex::services",
+                "service probe unavailable id={} name={} health={:?} status={:?} detail={}",
+                service_id,
+                service_name,
+                result.status,
+                result.http_status,
+                result.detail
+            );
+        }
+    }
+
+    result
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let jonex_level = if cfg!(debug_assertions) {
@@ -264,6 +310,7 @@ pub fn run() {
             reset_settings,
             get_service_registry,
             save_service_registry,
+            probe_remote_service,
         ])
         .run(tauri::generate_context!());
 

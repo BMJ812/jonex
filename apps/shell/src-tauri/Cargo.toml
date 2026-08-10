@@ -23,6 +23,7 @@ jonex-core = { path = "../../../crates/jonex-core" }
 jonex-plugin-host = { path = "../../../crates/jonex-plugin-host" }
 jonex-settings = { path = "../../../crates/jonex-settings" }
 jonex-service-registry = { path = "../../../crates/jonex-service-registry" }
+jonex-service-health = { path = "../../../crates/jonex-service-health" }
 jonex-telemetry = { path = "../../../crates/jonex-telemetry" }
 log.workspace = true
 tauri.workspace = true

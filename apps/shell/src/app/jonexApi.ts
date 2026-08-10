@@ -4,6 +4,8 @@ import type {
   JonexSettings,
   PlatformInfo,
   PluginCatalog,
+  ServiceProbeResult,
+  ServiceRecord,
   ServiceRegistry,
   ServiceRegistryLoadResult,
   SettingsLoadResult,
@@ -198,6 +200,27 @@ export async function saveServiceRegistry(
   );
 
   return saved;
+}
+
+export async function probeRemoteService(
+  service: ServiceRecord,
+): Promise<ServiceProbeResult> {
+  if (isNativeRuntime()) {
+    return invoke<ServiceProbeResult>("probe_remote_service", { service });
+  }
+
+  return {
+    serviceId: service.id,
+    status: "unsupported",
+    probeUrl:
+      service.kind === "home_assistant"
+        ? `${service.baseUrl.replace(/\/+$/, "")}/api/`
+        : `${service.baseUrl.replace(/\/+$/, "")}/`,
+    httpStatus: null,
+    latencyMs: 0,
+    checkedAtUnixMs: Date.now(),
+    detail: "Native service probes require the JØNEX desktop runtime.",
+  };
 }
 
 function createEmptyServiceRegistry(): ServiceRegistry {

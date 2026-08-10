@@ -6,11 +6,13 @@ import {
 
 import {
   getServiceRegistry,
+  probeRemoteService,
   saveServiceRegistry,
 } from "../app/jonexApi";
 import type {
   PlatformInfo,
   ServiceKind,
+  ServiceProbeResult,
   ServiceRecord,
   ServiceRegistry,
   TelemetrySnapshot,
@@ -52,6 +54,12 @@ export function SystemsModule({
   const [registryLoaded, setRegistryLoaded] = useState(false);
   const [registrySaving, setRegistrySaving] = useState(false);
   const [registryError, setRegistryError] = useState<string | null>(null);
+  const [serviceHealth, setServiceHealth] = useState<
+    Record<string, ServiceProbeResult>
+  >({});
+  const [probingServices, setProbingServices] = useState<
+    Record<string, boolean>
+  >({});
   const [serviceKind, setServiceKind] =
     useState<ServiceKind>("home_assistant");
   const [serviceName, setServiceName] = useState("Home Assistant");
@@ -88,19 +96,64 @@ export function SystemsModule({
 
   const persistRegistry = async (
     nextRegistry: ServiceRegistry,
-  ): Promise<void> => {
+  ): Promise<ServiceRegistry | null> => {
     setRegistrySaving(true);
     setRegistryError(null);
 
     try {
       const saved = await saveServiceRegistry(nextRegistry);
       setRegistry(saved);
+      return saved;
     } catch (error) {
       setRegistryError(
         error instanceof Error ? error.message : String(error),
       );
+      return null;
     } finally {
       setRegistrySaving(false);
+    }
+  };
+
+  const handleProbeService = async (
+    service: ServiceRecord,
+  ): Promise<void> => {
+    if (!service.enabled) {
+      return;
+    }
+
+    setProbingServices((current) => ({
+      ...current,
+      [service.id]: true,
+    }));
+
+    try {
+      const result = await probeRemoteService(service);
+
+      setServiceHealth((current) => ({
+        ...current,
+        [service.id]: result,
+      }));
+    } catch (error) {
+      setServiceHealth((current) => ({
+        ...current,
+        [service.id]: {
+          serviceId: service.id,
+          status: "fault",
+          probeUrl: service.baseUrl,
+          httpStatus: null,
+          latencyMs: 0,
+          checkedAtUnixMs: Date.now(),
+          detail:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        },
+      }));
+    } finally {
+      setProbingServices((current) => ({
+        ...current,
+        [service.id]: false,
+      }));
     }
   };
 
@@ -133,19 +186,50 @@ export function SystemsModule({
     void persistRegistry({
       ...registry,
       services: [...registry.services, service],
-    }).then(() => {
-      setServiceUrl("");
+    }).then((saved) => {
+      if (saved) {
+        setServiceUrl("");
+      }
     });
   };
 
   const handleToggleService = (serviceId: string): void => {
+    const currentService = registry.services.find(
+      ({ id }) => id === serviceId,
+    );
+
+    if (!currentService) {
+      return;
+    }
+
+    const enabled = !currentService.enabled;
+
     void persistRegistry({
       ...registry,
       services: registry.services.map((service) =>
         service.id === serviceId
-          ? { ...service, enabled: !service.enabled }
+          ? { ...service, enabled }
           : service,
       ),
+    }).then((saved) => {
+      if (!saved) {
+        return;
+      }
+
+      if (!enabled) {
+        setServiceHealth((current) => {
+          const next = { ...current };
+          delete next[serviceId];
+          return next;
+        });
+        return;
+      }
+
+      const service = saved.services.find(({ id }) => id === serviceId);
+
+      if (service) {
+        void handleProbeService(service);
+      }
     });
   };
 
@@ -167,6 +251,16 @@ export function SystemsModule({
       services: registry.services.filter(
         ({ id }) => id !== serviceId,
       ),
+    }).then((saved) => {
+      if (!saved) {
+        return;
+      }
+
+      setServiceHealth((current) => {
+        const next = { ...current };
+        delete next[serviceId];
+        return next;
+      });
     });
   };
 
@@ -360,6 +454,25 @@ export function SystemsModule({
                 </div>
 
                 <div className="service-registry__actions">
+                  <ServiceHealthChip
+                    enabled={service.enabled}
+                    probing={Boolean(probingServices[service.id])}
+                    result={serviceHealth[service.id]}
+                  />
+
+                  <button
+                    type="button"
+                    className="service-button"
+                    disabled={
+                      registrySaving ||
+                      !service.enabled ||
+                      Boolean(probingServices[service.id])
+                    }
+                    onClick={() => void handleProbeService(service)}
+                  >
+                    {probingServices[service.id] ? "PROBING..." : "PROBE"}
+                  </button>
+
                   <button
                     type="button"
                     className="service-button"
@@ -467,11 +580,86 @@ export function SystemsModule({
           </div>
           <div>
             <span className="staged-list__marker" />
-            Home Assistant authenticated health probe next
+            Native remote-service health probes active
+          </div>
+          <div>
+            <span className="staged-list__marker" />
+            Secure Home Assistant credentials next
           </div>
         </div>
       </Panel>
     </div>
+  );
+}
+
+interface ServiceHealthChipProps {
+  enabled: boolean;
+  probing: boolean;
+  result?: ServiceProbeResult;
+}
+
+function ServiceHealthChip({
+  enabled,
+  probing,
+  result,
+}: ServiceHealthChipProps) {
+  if (!enabled) {
+    return (
+      <span className="status-chip status-chip--neutral">
+        DISABLED
+      </span>
+    );
+  }
+
+  if (probing) {
+    return (
+      <span className="status-chip status-chip--warning">
+        PROBING
+      </span>
+    );
+  }
+
+  if (!result) {
+    return (
+      <span className="status-chip status-chip--neutral">
+        UNKNOWN
+      </span>
+    );
+  }
+
+  const className =
+    result.status === "online"
+      ? "status-chip status-chip--online"
+      : result.status === "auth_required"
+        ? "status-chip status-chip--warning"
+        : result.status === "unsupported"
+          ? "status-chip status-chip--neutral"
+          : "status-chip service-health--fault";
+
+  const label =
+    result.status === "online"
+      ? "ONLINE"
+      : result.status === "auth_required"
+        ? "AUTH REQUIRED"
+        : result.status === "offline"
+          ? "OFFLINE"
+          : result.status === "unsupported"
+            ? "NATIVE ONLY"
+            : "FAULT";
+
+  const title = [
+    result.detail,
+    result.httpStatus ? `HTTP ${result.httpStatus}` : null,
+    result.latencyMs ? `${result.latencyMs} ms` : null,
+    result.probeUrl,
+  ]
+    .filter(Boolean)
+    .join(" // ");
+
+  return (
+    <span className={className} title={title}>
+      {label}
+    </span>
   );
 }
 

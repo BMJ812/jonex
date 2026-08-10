@@ -6,6 +6,7 @@ members = [
     "crates/jonex-plugin-host",
     "crates/jonex-settings",
     "crates/jonex-service-registry",
+    "crates/jonex-service-health",
     "crates/jonex-telemetry",
 ]
 resolver = "2"
@@ -19,6 +20,7 @@ rust-version = "1.95"
 
 [workspace.dependencies]
 log = "0.4"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
