@@ -5,6 +5,7 @@ members = [
     "crates/jonex-plugin-api",
     "crates/jonex-plugin-host",
     "crates/jonex-settings",
+    "crates/jonex-service-registry",
     "crates/jonex-telemetry",
 ]
 resolver = "2"

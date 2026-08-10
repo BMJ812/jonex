@@ -2,6 +2,7 @@ use std::{env, path::PathBuf, sync::Mutex};
 
 use jonex_core::{platform_info, PlatformInfo};
 use jonex_plugin_host::{PluginCatalog, PluginHost};
+use jonex_service_registry::{ServiceRegistry, ServiceRegistryLoadResult, ServiceRegistryStore};
 use jonex_settings::{JonexSettings, SettingsLoadResult, SettingsLoadSource, SettingsStore};
 use jonex_telemetry::{TelemetryService, TelemetrySnapshot};
 use log::{debug, error, info, warn, LevelFilter};
@@ -12,6 +13,7 @@ struct JonexState {
     telemetry: Mutex<TelemetryService>,
     plugin_host: PluginHost,
     settings_store: Mutex<SettingsStore>,
+    service_registry_store: Mutex<ServiceRegistryStore>,
 }
 
 #[tauri::command]
@@ -142,6 +144,57 @@ fn reset_settings(state: tauri::State<'_, JonexState>) -> Result<SettingsLoadRes
     })
 }
 
+#[tauri::command]
+fn get_service_registry(
+    state: tauri::State<'_, JonexState>,
+) -> Result<ServiceRegistryLoadResult, String> {
+    let store = state
+        .service_registry_store
+        .lock()
+        .map_err(|_| "service registry store lock was poisoned".to_owned())?;
+
+    let loaded = store.load()?;
+
+    info!(
+        target: "jonex::services",
+        "service registry loaded source={:?} services={} path={}",
+        loaded.source,
+        loaded.registry.services.len(),
+        loaded.storage_path
+    );
+
+    if let Some(backup_path) = &loaded.backup_path {
+        warn!(
+            target: "jonex::services",
+            "malformed service registry was recovered backup={backup_path}"
+        );
+    }
+
+    Ok(loaded)
+}
+
+#[tauri::command]
+fn save_service_registry(
+    state: tauri::State<'_, JonexState>,
+    registry: ServiceRegistry,
+) -> Result<ServiceRegistry, String> {
+    let store = state
+        .service_registry_store
+        .lock()
+        .map_err(|_| "service registry store lock was poisoned".to_owned())?;
+
+    let saved = store.save(registry)?;
+
+    info!(
+        target: "jonex::services",
+        "service registry saved services={} path={}",
+        saved.services.len(),
+        store.path().display()
+    );
+
+    Ok(saved)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let jonex_level = if cfg!(debug_assertions) {
@@ -154,6 +207,7 @@ pub fn run() {
         .level(LevelFilter::Info)
         .level_for("jonex_shell_lib", jonex_level)
         .level_for("jonex::settings", jonex_level)
+        .level_for("jonex::services", jonex_level)
         .max_file_size(5_000_000)
         .rotation_strategy(RotationStrategy::KeepSome(5))
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -165,6 +219,7 @@ pub fn run() {
             let roots = plugin_roots(app);
             let application_data = app.path().app_data_dir()?;
             let settings_path = application_data.join("settings").join("settings.json");
+            let service_registry_path = application_data.join("services").join("registry.json");
 
             info!(
                 target: "jonex::runtime",
@@ -181,10 +236,19 @@ pub fn run() {
                 settings_path.display()
             );
 
+            info!(
+                target: "jonex::services",
+                "service registry initialized path={}",
+                service_registry_path.display()
+            );
+
             app.manage(JonexState {
                 telemetry: Mutex::new(TelemetryService::new()),
                 plugin_host: PluginHost::new(roots),
                 settings_store: Mutex::new(SettingsStore::new(settings_path)),
+                service_registry_store: Mutex::new(ServiceRegistryStore::new(
+                    service_registry_path,
+                )),
             });
 
             info!(target: "jonex::runtime", "native services initialized");
@@ -198,6 +262,8 @@ pub fn run() {
             get_settings,
             save_settings,
             reset_settings,
+            get_service_registry,
+            save_service_registry,
         ])
         .run(tauri::generate_context!());
 

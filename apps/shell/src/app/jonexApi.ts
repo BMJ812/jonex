@@ -4,6 +4,8 @@ import type {
   JonexSettings,
   PlatformInfo,
   PluginCatalog,
+  ServiceRegistry,
+  ServiceRegistryLoadResult,
   SettingsLoadResult,
   TelemetrySnapshot,
 } from "./models";
@@ -14,6 +16,7 @@ import {
 import { JONEX_VERSION } from "./version";
 
 const browserSettingsKey = "jonex.settings.v1";
+const browserServiceRegistryKey = "jonex.services.v1";
 
 export function isNativeRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -126,6 +129,82 @@ export async function resetSettings(): Promise<SettingsLoadResult> {
     source: "default",
     storagePath: `localStorage:${browserSettingsKey}`,
     backupPath: null,
+  };
+}
+
+export async function getServiceRegistry(): Promise<ServiceRegistryLoadResult> {
+  if (isNativeRuntime()) {
+    return invoke<ServiceRegistryLoadResult>("get_service_registry");
+  }
+
+  const stored = window.localStorage.getItem(browserServiceRegistryKey);
+
+  if (!stored) {
+    return {
+      registry: createEmptyServiceRegistry(),
+      source: "default",
+      storagePath: `localStorage:${browserServiceRegistryKey}`,
+      backupPath: null,
+    };
+  }
+
+  try {
+    const registry = JSON.parse(stored) as ServiceRegistry;
+
+    if (!Array.isArray(registry.services)) {
+      throw new Error("service registry services must be an array");
+    }
+
+    return {
+      registry,
+      source: "stored",
+      storagePath: `localStorage:${browserServiceRegistryKey}`,
+      backupPath: null,
+    };
+  } catch {
+    window.localStorage.removeItem(browserServiceRegistryKey);
+
+    return {
+      registry: createEmptyServiceRegistry(),
+      source: "recovered",
+      storagePath: `localStorage:${browserServiceRegistryKey}`,
+      backupPath: null,
+    };
+  }
+}
+
+export async function saveServiceRegistry(
+  registry: ServiceRegistry,
+): Promise<ServiceRegistry> {
+  if (isNativeRuntime()) {
+    return invoke<ServiceRegistry>("save_service_registry", { registry });
+  }
+
+  const saved = {
+    ...registry,
+    schemaVersion: 1,
+    services: registry.services.map((service) => ({
+      ...service,
+      id: service.id.trim(),
+      name: service.name.trim(),
+      baseUrl: service.baseUrl.trim().replace(/\/+$/, ""),
+    })),
+    updatedAtUnixMs: Date.now(),
+  };
+
+  window.localStorage.setItem(
+    browserServiceRegistryKey,
+    JSON.stringify(saved),
+  );
+
+  return saved;
+}
+
+function createEmptyServiceRegistry(): ServiceRegistry {
+  return {
+    schemaVersion: 1,
+    services: [],
+    updatedAtUnixMs: 0,
   };
 }
 

@@ -1617,6 +1617,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "jonex-service-registry"
+version = "0.1.4"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "jonex-settings"
 version = "0.1.4"
 dependencies = [
@@ -1631,6 +1640,7 @@ version = "0.1.4"
 dependencies = [
  "jonex-core",
  "jonex-plugin-host",
+ "jonex-service-registry",
  "jonex-settings",
  "jonex-telemetry",
  "log",

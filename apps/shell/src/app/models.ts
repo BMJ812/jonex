@@ -113,3 +113,36 @@ export interface SettingsLoadResult {
   storagePath: string;
   backupPath: string | null;
 }
+
+export type ServiceKind =
+  | "home_assistant"
+  | "unraid"
+  | "jellyfin"
+  | "plex"
+  | "generic";
+
+export interface ServiceRecord {
+  id: string;
+  kind: ServiceKind;
+  name: string;
+  baseUrl: string;
+  enabled: boolean;
+}
+
+export interface ServiceRegistry {
+  schemaVersion: number;
+  services: ServiceRecord[];
+  updatedAtUnixMs: number;
+}
+
+export type ServiceRegistryLoadSource =
+  | "default"
+  | "stored"
+  | "recovered";
+
+export interface ServiceRegistryLoadResult {
+  registry: ServiceRegistry;
+  source: ServiceRegistryLoadSource;
+  storagePath: string;
+  backupPath: string | null;
+}

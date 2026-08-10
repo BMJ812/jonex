@@ -1,5 +1,18 @@
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+} from "react";
+
+import {
+  getServiceRegistry,
+  saveServiceRegistry,
+} from "../app/jonexApi";
 import type {
   PlatformInfo,
+  ServiceKind,
+  ServiceRecord,
+  ServiceRegistry,
   TelemetrySnapshot,
 } from "../app/models";
 import { Panel } from "./Panel";
@@ -11,12 +24,164 @@ interface SystemsModuleProps {
   isNative: boolean;
 }
 
+const serviceKinds: Array<{
+  value: ServiceKind;
+  label: string;
+}> = [
+  { value: "home_assistant", label: "Home Assistant" },
+  { value: "unraid", label: "Unraid" },
+  { value: "jellyfin", label: "Jellyfin" },
+  { value: "plex", label: "Plex" },
+  { value: "generic", label: "Generic HTTP Service" },
+];
+
+const emptyRegistry: ServiceRegistry = {
+  schemaVersion: 1,
+  services: [],
+  updatedAtUnixMs: 0,
+};
+
 export function SystemsModule({
   telemetry,
   telemetryError,
   platform,
   isNative,
 }: SystemsModuleProps) {
+  const [registry, setRegistry] =
+    useState<ServiceRegistry>(emptyRegistry);
+  const [registryLoaded, setRegistryLoaded] = useState(false);
+  const [registrySaving, setRegistrySaving] = useState(false);
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [serviceKind, setServiceKind] =
+    useState<ServiceKind>("home_assistant");
+  const [serviceName, setServiceName] = useState("Home Assistant");
+  const [serviceUrl, setServiceUrl] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    void getServiceRegistry()
+      .then((loaded) => {
+        if (!active) {
+          return;
+        }
+
+        setRegistry(loaded.registry);
+        setRegistryError(null);
+        setRegistryLoaded(true);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+
+        setRegistryError(
+          error instanceof Error ? error.message : String(error),
+        );
+        setRegistryLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const persistRegistry = async (
+    nextRegistry: ServiceRegistry,
+  ): Promise<void> => {
+    setRegistrySaving(true);
+    setRegistryError(null);
+
+    try {
+      const saved = await saveServiceRegistry(nextRegistry);
+      setRegistry(saved);
+    } catch (error) {
+      setRegistryError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setRegistrySaving(false);
+    }
+  };
+
+  const handleAddService = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+
+    const name = serviceName.trim();
+    const baseUrl = serviceUrl.trim();
+
+    if (!name) {
+      setRegistryError("Service name is required.");
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      setRegistryError(
+        "Service URL must begin with http:// or https://.",
+      );
+      return;
+    }
+
+    const service: ServiceRecord = {
+      id: `${serviceKind}-${Date.now()}`,
+      kind: serviceKind,
+      name,
+      baseUrl,
+      enabled: true,
+    };
+
+    void persistRegistry({
+      ...registry,
+      services: [...registry.services, service],
+    }).then(() => {
+      setServiceUrl("");
+    });
+  };
+
+  const handleToggleService = (serviceId: string): void => {
+    void persistRegistry({
+      ...registry,
+      services: registry.services.map((service) =>
+        service.id === serviceId
+          ? { ...service, enabled: !service.enabled }
+          : service,
+      ),
+    });
+  };
+
+  const handleRemoveService = (serviceId: string): void => {
+    const service = registry.services.find(
+      ({ id }) => id === serviceId,
+    );
+
+    if (!service) {
+      return;
+    }
+
+    if (!window.confirm(`Remove ${service.name} from JØNEX?`)) {
+      return;
+    }
+
+    void persistRegistry({
+      ...registry,
+      services: registry.services.filter(
+        ({ id }) => id !== serviceId,
+      ),
+    });
+  };
+
+  const handleKindChange = (kind: ServiceKind): void => {
+    setServiceKind(kind);
+
+    const option = serviceKinds.find(
+      ({ value }) => value === kind,
+    );
+
+    if (option) {
+      setServiceName(option.label);
+    }
+  };
+
   return (
     <div className="dashboard-grid">
       <Panel
@@ -64,10 +229,7 @@ export function SystemsModule({
             </div>
 
             <div className="plugin-list">
-              <SystemRow
-                label="Hostname"
-                value={telemetry.host.hostname}
-              />
+              <SystemRow label="Hostname" value={telemetry.host.hostname} />
               <SystemRow
                 label="Operating System"
                 value={telemetry.host.operatingSystem}
@@ -152,6 +314,141 @@ export function SystemsModule({
       </Panel>
 
       <Panel
+        title="Remote Service Registry"
+        eyebrow="SYSTEMS // SERVICES"
+        action={
+          <span
+            className={`status-chip ${
+              registryError
+                ? "status-chip--warning"
+                : "status-chip--online"
+            }`}
+          >
+            {registrySaving
+              ? "SYNCING"
+              : registryLoaded
+                ? `${registry.services.length} REGISTERED`
+                : "LOADING"}
+          </span>
+        }
+      >
+        {registryError ? (
+          <div className="inline-warning">{registryError}</div>
+        ) : null}
+
+        {!registryLoaded ? (
+          <div className="loading-state">
+            <span className="loading-state__indicator" />
+            Loading remote service registry...
+          </div>
+        ) : registry.services.length === 0 ? (
+          <div className="empty-state">
+            No remote services are registered yet.
+          </div>
+        ) : (
+          <div className="plugin-list">
+            {registry.services.map((service) => (
+              <div
+                className="plugin-list__item service-registry__item"
+                key={service.id}
+              >
+                <div>
+                  <strong>{service.name}</strong>
+                  <span>
+                    {formatServiceKind(service.kind)} // {service.baseUrl}
+                  </span>
+                </div>
+
+                <div className="service-registry__actions">
+                  <button
+                    type="button"
+                    className="service-button"
+                    disabled={registrySaving}
+                    onClick={() => handleToggleService(service.id)}
+                  >
+                    {service.enabled ? "ENABLED" : "DISABLED"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="service-button service-button--danger"
+                    disabled={registrySaving}
+                    onClick={() => handleRemoveService(service.id)}
+                  >
+                    REMOVE
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="service-registry__note">
+          Registry entries contain endpoint metadata only. Authentication
+          credentials are not stored here.
+        </div>
+      </Panel>
+
+      <Panel
+        title="Register Service"
+        eyebrow="SYSTEMS // ENDPOINT ENROLLMENT"
+      >
+        <form
+          className="service-form"
+          onSubmit={handleAddService}
+        >
+          <label className="service-field">
+            <span>TYPE</span>
+            <select
+              value={serviceKind}
+              disabled={registrySaving}
+              onChange={(event) =>
+                handleKindChange(event.target.value as ServiceKind)
+              }
+            >
+              {serviceKinds.map((kind) => (
+                <option key={kind.value} value={kind.value}>
+                  {kind.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="service-field">
+            <span>DISPLAY NAME</span>
+            <input
+              type="text"
+              value={serviceName}
+              disabled={registrySaving}
+              onChange={(event) => setServiceName(event.target.value)}
+              placeholder="Home Assistant"
+            />
+          </label>
+
+          <label className="service-field service-field--wide">
+            <span>BASE URL</span>
+            <input
+              type="url"
+              value={serviceUrl}
+              disabled={registrySaving}
+              onChange={(event) => setServiceUrl(event.target.value)}
+              placeholder="http://homeassistant.local:8123"
+            />
+          </label>
+
+          <div className="service-form__actions">
+            <button
+              type="submit"
+              className="service-button service-button--primary"
+              disabled={registrySaving}
+            >
+              {registrySaving ? "SAVING..." : "REGISTER ENDPOINT"}
+            </button>
+          </div>
+        </form>
+      </Panel>
+
+      <Panel
         title="Control Surface"
         eyebrow="SYSTEMS // CAPABILITIES"
       >
@@ -166,11 +463,11 @@ export function SystemsModule({
           </div>
           <div>
             <span className="staged-list__marker" />
-            Remote service registry next
+            Remote service registry active
           </div>
           <div>
             <span className="staged-list__marker" />
-            Home Assistant bridge next
+            Home Assistant authenticated health probe next
           </div>
         </div>
       </Panel>
@@ -191,6 +488,13 @@ function SystemRow({ label, value }: SystemRowProps) {
         <span>{value}</span>
       </div>
     </div>
+  );
+}
+
+function formatServiceKind(kind: ServiceKind): string {
+  return (
+    serviceKinds.find(({ value }) => value === kind)?.label ??
+    kind.toUpperCase()
   );
 }
 
