@@ -1,0 +1,13 @@
+[package]
+name = "jonex-service-health"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Native remote-service health probes for JØNEX"
+
+[dependencies]
+jonex-service-registry = { path = "../jonex-service-registry" }
+reqwest.workspace = true
+serde.workspace = true

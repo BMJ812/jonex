@@ -971,3 +971,166 @@ button:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* JØNEX 0.1.4 service registry */
+.service-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.service-field {
+  display: grid;
+  gap: 6px;
+}
+
+.service-field--wide {
+  grid-column: 1 / -1;
+}
+
+.service-field > span {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+.service-field input,
+.service-field select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  outline: none;
+  background: rgba(5, 9, 12, 0.72);
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.service-field input:focus,
+.service-field select:focus {
+  border-color: var(--cyan-muted);
+}
+
+.service-field input::placeholder {
+  color: var(--text-muted);
+}
+
+.service-form__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.service-button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.service-button:hover:not(:disabled) {
+  border-color: var(--cyan-muted);
+  color: var(--cyan);
+}
+
+.service-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.service-button--primary {
+  border-color: rgba(99, 215, 229, 0.35);
+  color: var(--cyan);
+}
+
+.service-button--danger {
+  border-color: rgba(223, 102, 114, 0.28);
+  color: var(--danger);
+}
+
+.service-registry__item {
+  align-items: flex-start;
+}
+
+.service-registry__actions {
+  display: flex !important;
+  grid-auto-flow: column;
+  gap: 6px !important;
+}
+
+.service-registry__note {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-muted);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .service-form {
+    grid-template-columns: 1fr;
+  }
+
+  .service-field--wide,
+  .service-form__actions {
+    grid-column: auto;
+  }
+}
+
+
+/* JØNEX 0.1.4 native service health */
+.service-health--fault {
+  border-color: rgba(223, 102, 114, 0.34);
+  color: var(--danger);
+}
+
+.service-registry__actions .status-chip {
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+
+@media (max-width: 1100px) {
+  .service-registry__item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .service-registry__actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    grid-auto-flow: initial;
+  }
+}
+
+/* JØNEX 0.1.4 service health responsive controls */
+.service-registry__item {
+  flex-wrap: wrap;
+}
+
+.service-registry__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1400px) {
+  .service-registry__item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .service-registry__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

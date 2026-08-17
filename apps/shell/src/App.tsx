@@ -33,6 +33,7 @@ import { resolveWidget } from "./app/widgetRegistry";
 import { JONEX_VERSION } from "./app/version";
 import { Panel } from "./components/Panel";
 import { SettingsModule } from "./components/SettingsModule";
+import { SystemsModule } from "./components/SystemsModule";
 import { useTelemetry } from "./hooks/useTelemetry";
 
 interface NavigationItem {
@@ -412,6 +413,13 @@ export function App() {
                 </Panel>
               ) : null}
             </div>
+          ) : activeModule === "systems" ? (
+            <SystemsModule
+              telemetry={telemetry.snapshot}
+              telemetryError={telemetry.error}
+              platform={platform}
+              isNative={nativeRuntime}
+            />
           ) : activeModule === "settings" ? (
             <SettingsModule
               settings={settings}
@@ -550,7 +558,7 @@ export function App() {
 }
 
 interface ModulePlaceholderProps {
-  moduleId: Exclude<ModuleId, "dashboard" | "settings">;
+  moduleId: Exclude<ModuleId, "dashboard" | "systems" | "settings">;
   pluginCount: number;
 }
 
