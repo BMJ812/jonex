@@ -5,6 +5,13 @@ import {
 } from "react";
 
 import {
+  getCredentialVaultStatus,
+  getServiceCredential,
+  hasServiceCredential,
+  removeServiceCredential,
+  saveServiceCredential,
+} from "../app/credentialVault";
+import {
   getServiceRegistry,
   probeRemoteService,
   saveServiceRegistry,
@@ -60,6 +67,17 @@ export function SystemsModule({
   const [probingServices, setProbingServices] = useState<
     Record<string, boolean>
   >({});
+  const [credentialState, setCredentialState] = useState<
+    Record<string, boolean>
+  >({});
+  const [credentialInputs, setCredentialInputs] = useState<
+    Record<string, string>
+  >({});
+  const [credentialSaving, setCredentialSaving] = useState<
+    Record<string, boolean>
+  >({});
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const vaultUnlocked = getCredentialVaultStatus().unlocked;
   const [serviceKind, setServiceKind] =
     useState<ServiceKind>("home_assistant");
   const [serviceName, setServiceName] = useState("Home Assistant");
@@ -94,6 +112,45 @@ export function SystemsModule({
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    if (!registryLoaded || !vaultUnlocked) {
+      setCredentialState({});
+      return () => {
+        active = false;
+      };
+    }
+
+    const homeAssistantServices = registry.services.filter(
+      ({ kind }) => kind === "home_assistant",
+    );
+
+    void Promise.all(
+      homeAssistantServices.map(async (service) => [
+        service.id,
+        await hasServiceCredential(service.id),
+      ] as const),
+    )
+      .then((entries) => {
+        if (active) {
+          setCredentialState(Object.fromEntries(entries));
+          setCredentialError(null);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setCredentialError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [registry.services, registryLoaded, vaultUnlocked]);
+
   const persistRegistry = async (
     nextRegistry: ServiceRegistry,
   ): Promise<ServiceRegistry | null> => {
@@ -127,7 +184,13 @@ export function SystemsModule({
     }));
 
     try {
-      const result = await probeRemoteService(service);
+      let bearerToken: string | null = null;
+
+      if (service.kind === "home_assistant" && getCredentialVaultStatus().unlocked) {
+        bearerToken = await getServiceCredential(service.id);
+      }
+
+      const result = await probeRemoteService(service, bearerToken);
 
       setServiceHealth((current) => ({
         ...current,
@@ -154,6 +217,57 @@ export function SystemsModule({
         ...current,
         [service.id]: false,
       }));
+    }
+  };
+
+  const handleSaveCredential = async (
+    service: ServiceRecord,
+  ): Promise<void> => {
+    const value = credentialInputs[service.id]?.trim() ?? "";
+
+    if (!value) {
+      setCredentialError("Home Assistant token cannot be empty.");
+      return;
+    }
+
+    setCredentialSaving((current) => ({ ...current, [service.id]: true }));
+    setCredentialError(null);
+
+    try {
+      await saveServiceCredential(service.id, value);
+      setCredentialState((current) => ({ ...current, [service.id]: true }));
+      setCredentialInputs((current) => ({ ...current, [service.id]: "" }));
+      await handleProbeService(service);
+    } catch (error) {
+      setCredentialError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setCredentialSaving((current) => ({ ...current, [service.id]: false }));
+    }
+  };
+
+  const handleRemoveCredential = async (
+    service: ServiceRecord,
+  ): Promise<void> => {
+    if (!window.confirm(`Remove the stored credential for ${service.name}?`)) {
+      return;
+    }
+
+    setCredentialSaving((current) => ({ ...current, [service.id]: true }));
+    setCredentialError(null);
+
+    try {
+      await removeServiceCredential(service.id);
+      setCredentialState((current) => ({ ...current, [service.id]: false }));
+      setCredentialInputs((current) => ({ ...current, [service.id]: "" }));
+      await handleProbeService(service);
+    } catch (error) {
+      setCredentialError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setCredentialSaving((current) => ({ ...current, [service.id]: false }));
     }
   };
 
@@ -503,6 +617,102 @@ export function SystemsModule({
       </Panel>
 
       <Panel
+        title="Service Authentication"
+        eyebrow="SYSTEMS // CREDENTIALS"
+        action={
+          <span
+            className={`status-chip ${
+              credentialError
+                ? "status-chip--warning"
+                : vaultUnlocked
+                  ? "status-chip--online"
+                  : "status-chip--neutral"
+            }`}
+          >
+            {credentialError ? "FAULT" : vaultUnlocked ? "VAULT UNLOCKED" : "VAULT LOCKED"}
+          </span>
+        }
+      >
+        {credentialError ? (
+          <div className="inline-warning">{credentialError}</div>
+        ) : null}
+
+        {!vaultUnlocked ? (
+          <div className="empty-state">
+            Unlock the Secure Credential Vault in Settings to manage integration credentials.
+          </div>
+        ) : registry.services.filter(({ kind }) => kind === "home_assistant").length === 0 ? (
+          <div className="empty-state">
+            Register a Home Assistant endpoint before adding credentials.
+          </div>
+        ) : (
+          <div className="service-auth-list">
+            {registry.services
+              .filter(({ kind }) => kind === "home_assistant")
+              .map((service) => {
+                const stored = Boolean(credentialState[service.id]);
+                const saving = Boolean(credentialSaving[service.id]);
+
+                return (
+                  <div className="service-auth-row" key={service.id}>
+                    <div className="service-auth-row__identity">
+                      <strong>{service.name}</strong>
+                      <span>{stored ? "CREDENTIAL STORED" : "NO CREDENTIAL"}</span>
+                    </div>
+
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={credentialInputs[service.id] ?? ""}
+                      disabled={saving}
+                      onChange={(event) =>
+                        setCredentialInputs((current) => ({
+                          ...current,
+                          [service.id]: event.target.value,
+                        }))
+                      }
+                      placeholder={
+                        stored
+                          ? "Enter a new token to replace stored credential"
+                          : "Home Assistant long-lived access token"
+                      }
+                    />
+
+                    <div className="service-auth-row__actions">
+                      <button
+                        type="button"
+                        className="service-button service-button--primary"
+                        disabled={
+                          saving || !(credentialInputs[service.id]?.trim())
+                        }
+                        onClick={() => void handleSaveCredential(service)}
+                      >
+                        {saving ? "SAVING..." : stored ? "REPLACE" : "SAVE TOKEN"}
+                      </button>
+
+                      {stored ? (
+                        <button
+                          type="button"
+                          className="service-button service-button--danger"
+                          disabled={saving}
+                          onClick={() => void handleRemoveCredential(service)}
+                        >
+                          REMOVE TOKEN
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+
+        <div className="service-registry__note">
+          Tokens are stored only in the encrypted JØNEX Stronghold snapshot. They are never written to registry.json.
+        </div>
+      </Panel>
+
+      <Panel
         title="Register Service"
         eyebrow="SYSTEMS // ENDPOINT ENROLLMENT"
       >
@@ -584,7 +794,7 @@ export function SystemsModule({
           </div>
           <div>
             <span className="staged-list__marker" />
-            Secure Home Assistant credentials next
+            Encrypted Home Assistant credentials active
           </div>
         </div>
       </Panel>
@@ -632,20 +842,24 @@ function ServiceHealthChip({
       ? "status-chip status-chip--online"
       : result.status === "auth_required"
         ? "status-chip status-chip--warning"
-        : result.status === "unsupported"
-          ? "status-chip status-chip--neutral"
-          : "status-chip service-health--fault";
+        : result.status === "auth_failed"
+          ? "status-chip service-health--fault"
+          : result.status === "unsupported"
+            ? "status-chip status-chip--neutral"
+            : "status-chip service-health--fault";
 
   const label =
     result.status === "online"
       ? "ONLINE"
       : result.status === "auth_required"
         ? "AUTH REQUIRED"
-        : result.status === "offline"
-          ? "OFFLINE"
-          : result.status === "unsupported"
-            ? "NATIVE ONLY"
-            : "FAULT";
+        : result.status === "auth_failed"
+          ? "AUTH FAILED"
+          : result.status === "offline"
+            ? "OFFLINE"
+            : result.status === "unsupported"
+              ? "NATIVE ONLY"
+              : "FAULT";
 
   const title = [
     result.detail,

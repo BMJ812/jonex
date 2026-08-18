@@ -199,10 +199,13 @@ fn save_service_registry(
 }
 
 #[tauri::command]
-async fn probe_remote_service(service: ServiceRecord) -> ServiceProbeResult {
+async fn probe_remote_service(
+    service: ServiceRecord,
+    bearer_token: Option<String>,
+) -> ServiceProbeResult {
     let service_name = service.name.clone();
     let service_id = service.id.clone();
-    let result = probe_service(&service).await;
+    let result = probe_service(&service, bearer_token.as_deref()).await;
 
     match result.status {
         ServiceHealthStatus::Online => {
@@ -219,6 +222,16 @@ async fn probe_remote_service(service: ServiceRecord) -> ServiceProbeResult {
             info!(
                 target: "jonex::services",
                 "service probe requires authentication id={} name={} status={:?} latency_ms={}",
+                service_id,
+                service_name,
+                result.http_status,
+                result.latency_ms
+            );
+        }
+        ServiceHealthStatus::AuthFailed => {
+            warn!(
+                target: "jonex::services",
+                "service probe credential rejected id={} name={} status={:?} latency_ms={}",
                 service_id,
                 service_name,
                 result.http_status,

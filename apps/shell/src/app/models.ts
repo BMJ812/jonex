@@ -150,6 +150,7 @@ export interface ServiceRegistryLoadResult {
 export type ServiceHealthStatus =
   | "online"
   | "auth_required"
+  | "auth_failed"
   | "offline"
   | "fault"
   | "unsupported";

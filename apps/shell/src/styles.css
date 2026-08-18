@@ -1134,3 +1134,75 @@ button:focus-visible {
     justify-content: flex-start;
   }
 }
+
+/* JØNEX 0.1.5 authenticated Home Assistant integration */
+.service-auth-list {
+  display: grid;
+}
+
+.service-auth-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(220px, 1.4fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--border-muted);
+}
+
+.service-auth-row:first-child {
+  border-top: 0;
+}
+
+.service-auth-row__identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.service-auth-row__identity strong {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 570;
+}
+
+.service-auth-row__identity span {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.service-auth-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  outline: none;
+  background: rgba(5, 9, 12, 0.72);
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.service-auth-row input:focus {
+  border-color: var(--cyan-muted);
+}
+
+.service-auth-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 1400px) {
+  .service-auth-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .service-auth-row__actions {
+    justify-content: flex-start;
+  }
+}

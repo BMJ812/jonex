@@ -204,9 +204,13 @@ export async function saveServiceRegistry(
 
 export async function probeRemoteService(
   service: ServiceRecord,
+  bearerToken: string | null = null,
 ): Promise<ServiceProbeResult> {
   if (isNativeRuntime()) {
-    return invoke<ServiceProbeResult>("probe_remote_service", { service });
+    return invoke<ServiceProbeResult>("probe_remote_service", {
+      service,
+      bearerToken,
+    });
   }
 
   return {

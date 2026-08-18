@@ -11,6 +11,7 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum ServiceHealthStatus {
     Online,
     AuthRequired,
+    AuthFailed,
     Offline,
     Fault,
 }
@@ -27,7 +28,10 @@ pub struct ServiceProbeResult {
     pub detail: String,
 }
 
-pub async fn probe_service(service: &ServiceRecord) -> ServiceProbeResult {
+pub async fn probe_service(
+    service: &ServiceRecord,
+    bearer_token: Option<&str>,
+) -> ServiceProbeResult {
     let probe_url = probe_url(service);
     let started = Instant::now();
 
@@ -61,20 +65,34 @@ pub async fn probe_service(service: &ServiceRecord) -> ServiceProbeResult {
         }
     };
 
-    match client.get(&probe_url).send().await {
+    let bearer_token = bearer_token
+        .map(str::trim)
+        .filter(|token| !token.is_empty());
+    let request = client.get(&probe_url);
+    let request = match bearer_token {
+        Some(token) => request.bearer_auth(token),
+        None => request,
+    };
+
+    match request.send().await {
         Ok(response) => {
             let status = response.status();
             let http_status = Some(status.as_u16());
 
             if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-                return result(
-                    service,
-                    ServiceHealthStatus::AuthRequired,
-                    probe_url,
-                    http_status,
-                    started,
-                    format!("HTTP {} requires authentication", status.as_u16()),
-                );
+                let (health, detail) = if bearer_token.is_some() {
+                    (
+                        ServiceHealthStatus::AuthFailed,
+                        format!("HTTP {} rejected the stored credential", status.as_u16()),
+                    )
+                } else {
+                    (
+                        ServiceHealthStatus::AuthRequired,
+                        format!("HTTP {} requires authentication", status.as_u16()),
+                    )
+                };
+
+                return result(service, health, probe_url, http_status, started, detail);
             }
 
             if status.is_success() || status.is_redirection() {
