@@ -1,6 +1,6 @@
 {
   "name": "jonex-platform",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "JØNEX is a local-first operations platform for developers and homelab operators.",
   "license": "MIT",

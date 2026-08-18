@@ -28,3 +28,4 @@ jonex-telemetry = { path = "../../../crates/jonex-telemetry" }
 log.workspace = true
 tauri.workspace = true
 tauri-plugin-log.workspace = true
+tauri-plugin-stronghold.workspace = true

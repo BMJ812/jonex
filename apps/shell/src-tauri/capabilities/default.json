@@ -7,6 +7,9 @@
   ],
   "permissions": [
     "core:default",
-    "log:default"
+    "log:default",
+    "stronghold:default",
+    "stronghold:allow-remove-store-record",
+    "stronghold:allow-destroy"
   ]
 }

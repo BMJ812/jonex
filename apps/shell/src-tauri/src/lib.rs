@@ -254,6 +254,7 @@ pub fn run() {
         .level_for("jonex_shell_lib", jonex_level)
         .level_for("jonex::settings", jonex_level)
         .level_for("jonex::services", jonex_level)
+        .level_for("jonex::credentials", jonex_level)
         .max_file_size(5_000_000)
         .rotation_strategy(RotationStrategy::KeepSome(5))
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -264,8 +265,14 @@ pub fn run() {
         .setup(|app| {
             let roots = plugin_roots(app);
             let application_data = app.path().app_data_dir()?;
+            let local_application_data = app.path().app_local_data_dir()?;
             let settings_path = application_data.join("settings").join("settings.json");
             let service_registry_path = application_data.join("services").join("registry.json");
+            let stronghold_salt_path = local_application_data.join("stronghold-salt.txt");
+
+            app.handle().plugin(
+                tauri_plugin_stronghold::Builder::with_argon2(&stronghold_salt_path).build(),
+            )?;
 
             info!(
                 target: "jonex::runtime",
@@ -286,6 +293,11 @@ pub fn run() {
                 target: "jonex::services",
                 "service registry initialized path={}",
                 service_registry_path.display()
+            );
+
+            info!(
+                target: "jonex::credentials",
+                "credential vault engine initialized"
             );
 
             app.manage(JonexState {

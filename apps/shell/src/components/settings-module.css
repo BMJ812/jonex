@@ -243,3 +243,95 @@
     grid-template-columns: 1fr;
   }
 }
+/* JØNEX 0.1.5 secure credential vault */
+.credential-vault {
+  display: grid;
+  gap: 14px;
+}
+
+.credential-vault__description {
+  display: grid;
+  gap: 6px;
+}
+
+.credential-vault__description strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 580;
+}
+
+.credential-vault__description p,
+.credential-vault__note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.credential-vault__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.credential-vault__form label {
+  display: grid;
+  gap: 6px;
+}
+
+.credential-vault__form label > span {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+.credential-vault__form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  outline: none;
+  background: rgba(5, 9, 12, 0.72);
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.credential-vault__form input:focus {
+  border-color: var(--cyan-muted);
+}
+
+.credential-vault__button {
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(99, 215, 229, 0.35);
+  background: rgba(99, 215, 229, 0.04);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.credential-vault__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.credential-vault__note {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-muted);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
+@media (max-width: 640px) {
+  .credential-vault__form {
+    grid-template-columns: 1fr;
+  }
+}

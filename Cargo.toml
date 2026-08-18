@@ -12,7 +12,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/BMJ812/jonex"
@@ -28,4 +28,7 @@ sysinfo = "0.39.6"
 tauri = "2"
 tauri-build = "2"
 tauri-plugin-log = "2"
+tauri-plugin-stronghold = "2"
 tempfile = "3"
+[profile.dev.package.scrypt]
+opt-level = 3

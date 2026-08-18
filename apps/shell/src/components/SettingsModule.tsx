@@ -1,3 +1,10 @@
+import { useState, type FormEvent } from "react";
+
+import {
+  getCredentialVaultStatus,
+  lockCredentialVault,
+  unlockCredentialVault,
+} from "../app/credentialVault";
 import type {
   JonexSettings,
   PluginRecord,
@@ -181,6 +188,8 @@ export function SettingsModule({
         </div>
       </Panel>
 
+      <CredentialVaultPanel />
+
       <Panel
         title="Recovery"
         eyebrow="SETTINGS // DEFAULT PROFILE"
@@ -205,5 +214,142 @@ export function SettingsModule({
         </div>
       </Panel>
     </div>
+  );
+}
+
+function CredentialVaultPanel() {
+  const initialStatus = getCredentialVaultStatus();
+  const [passphrase, setPassphrase] = useState("");
+  const [unlocked, setUnlocked] = useState(initialStatus.unlocked);
+  const [vaultPath, setVaultPath] = useState<string | null>(
+    initialStatus.path,
+  );
+  const [busy, setBusy] = useState(false);
+  const [vaultError, setVaultError] = useState<string | null>(null);
+
+  const handleUnlock = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+
+    setBusy(true);
+    setVaultError(null);
+
+    void unlockCredentialVault(passphrase)
+      .then((status) => {
+        setUnlocked(status.unlocked);
+        setVaultPath(status.path);
+        setPassphrase("");
+      })
+      .catch((error) => {
+        setVaultError(
+          error instanceof Error ? error.message : String(error),
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  const handleLock = (): void => {
+    setBusy(true);
+    setVaultError(null);
+
+    void lockCredentialVault()
+      .then(() => {
+        setUnlocked(false);
+        setVaultPath(null);
+        setPassphrase("");
+      })
+      .catch((error) => {
+        setVaultError(
+          error instanceof Error ? error.message : String(error),
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  return (
+    <Panel
+      title="Secure Credential Vault"
+      eyebrow="SETTINGS // STRONGHOLD"
+      action={
+        <span
+          className={`status-chip ${
+            vaultError
+              ? "status-chip--warning"
+              : unlocked
+                ? "status-chip--online"
+                : "status-chip--neutral"
+          }`}
+        >
+          {vaultError ? "FAULT" : unlocked ? "UNLOCKED" : "LOCKED"}
+        </span>
+      }
+    >
+      <div className="credential-vault">
+        <div className="credential-vault__description">
+          <strong>Encrypted integration credentials</strong>
+          <p>
+            JØNEX keeps service secrets in an encrypted Stronghold snapshot,
+            separate from the remote service registry. The vault passphrase is
+            required after JØNEX starts and is not persisted in settings.
+          </p>
+        </div>
+
+        {unlocked ? (
+          <>
+            <div className="settings-path">
+              <span>VAULT SNAPSHOT</span>
+              <code>{vaultPath ?? "ACTIVE"}</code>
+            </div>
+
+            <button
+              type="button"
+              className="credential-vault__button"
+              disabled={busy}
+              onClick={handleLock}
+            >
+              {busy ? "LOCKING..." : "LOCK VAULT"}
+            </button>
+          </>
+        ) : (
+          <form
+            className="credential-vault__form"
+            onSubmit={handleUnlock}
+          >
+            <label>
+              <span>VAULT PASSPHRASE</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={passphrase}
+                disabled={busy}
+                minLength={12}
+                onChange={(event) => setPassphrase(event.target.value)}
+                placeholder="12+ characters"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="credential-vault__button"
+              disabled={busy || passphrase.trim().length < 12}
+            >
+              {busy ? "UNLOCKING..." : "UNLOCK VAULT"}
+            </button>
+          </form>
+        )}
+
+        {vaultError ? (
+          <div className="inline-warning">{vaultError}</div>
+        ) : null}
+
+        <div className="credential-vault__note">
+          This slice establishes the encrypted vault only. Home Assistant token
+          enrollment and authenticated probes are wired in the next step.
+        </div>
+      </div>
+    </Panel>
   );
 }
